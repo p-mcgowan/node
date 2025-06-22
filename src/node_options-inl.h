@@ -334,8 +334,28 @@ void OptionsParser<Options>::Parse(
   if (v8_args->empty())
     v8_args->push_back(args.program_name());
 
+  bool hasTestFlag = false;
+  auto terminatorPosition = std::find(orig_args->begin(), orig_args->end(), "--");
+
   while (!args.empty() && errors->empty()) {
-    if (args.first().size() <= 1 || args.first()[0] != '-') break;
+    if (args.first().size() <= 1) break;
+    if (args.first()[0] != '-') {
+      if (!hasTestFlag) {
+        break;
+      }
+
+      // If --test is supplied, don't exit on first positional. Instead, move it
+      // to after the option terminator ("--")
+      if (terminatorPosition != orig_args->end()) {
+        terminatorPosition = orig_args->end();
+        orig_args->push_back("--");
+      }
+
+      orig_args->insert(terminatorPosition, args.first());
+      orig_args->erase(orig_args->begin() + 1);
+
+      continue;
+    }
 
     // We know that we're either going to consume this
     // argument or fail completely.
@@ -354,6 +374,10 @@ void OptionsParser<Options>::Parse(
         arg[0] == '-' && arg[1] == '-' ? arg.find('=') : std::string::npos;
     std::string name =
       equals_index == std::string::npos ? arg : arg.substr(0, equals_index);
+
+    if (name.compare("--test") == 0) {
+      hasTestFlag = true;
+    }
 
     // Store the 'original name' of the argument. This name differs from
     // 'name' in that it contains a possible '=' sign and is not affected
